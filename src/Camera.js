@@ -112,6 +112,7 @@ export default class Camera extends Component {
     permissionDialogMessage: PropTypes.string,
     notAuthorizedView: PropTypes.element,
     pendingAuthorizationView: PropTypes.element,
+    skipProcessing: PropTypes.boolean,
   };
 
   static defaultProps = {
@@ -163,6 +164,7 @@ export default class Camera extends Component {
         <ActivityIndicator size="small" />
       </View>
     ),
+    skipProcessing: false
   };
 
   static checkDeviceAuthorizationStatus = CameraManager.checkDeviceAuthorizationStatus;
@@ -308,6 +310,7 @@ export default class Camera extends Component {
       mirrorImage: props.mirrorImage,
       fixOrientation: props.fixOrientation,
       cropToPreview: props.cropToPreview,
+      skipProcessing: props.skipProcessing,
       ...options,
     };
 
