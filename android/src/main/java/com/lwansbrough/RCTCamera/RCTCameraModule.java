@@ -585,7 +585,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
     private static void writeFile(File imageFile, final byte[] data)
             throws IOException {
 
-        FileOutputStream fOut;
+        FileOutputStream fOut = null;
 
         try {
             fOut = new FileOutputStream(imageFile);
