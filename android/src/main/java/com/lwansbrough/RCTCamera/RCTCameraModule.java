@@ -552,7 +552,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
                 AsyncTask.execute(new Runnable() {
                     @Override
                     public void run() {
-                        processImage(new MutableImage(data), options, promise);
+                        processImage(data, options, promise);
                     }
                 });
 
@@ -582,11 +582,102 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
         }
     }
 
+    private static void writeFile(File imageFile, final byte[] data)
+            throws IOException {
+
+        FileOutputStream fOut = null;
+
+        try {
+            fOut = new FileOutputStream(imageFile);
+
+            // Save byte array (it is already a JPEG)
+            fOut.write(data);
+
+        } finally {
+            if (fOut != null) {
+                fOut.close();
+                fOut = null;
+            }
+        }
+    }
+
+    private synchronized void processImage(final byte[] data, ReadableMap options, Promise promise) {
+        boolean skipProcessing = options.hasKey("skipProcessing") && options.getBoolean("skipProcessing");
+        if (!skipProcessing) {
+            processImageImpl(new MutableImage(data), options, promise);
+            return;
+        }
+
+        switch (options.getInt("target")) {
+            case RCT_CAMERA_CAPTURE_TARGET_MEMORY:
+                String encoded = Base64.encodeToString(data, Base64.DEFAULT);
+                WritableMap response = new WritableNativeMap();
+                response.putString("data", encoded);
+                promise.resolve(response);
+                break;
+
+            case RCT_CAMERA_CAPTURE_TARGET_CAMERA_ROLL: {
+                File cameraRollFile = getOutputCameraRollFile(MEDIA_TYPE_IMAGE);
+                if (cameraRollFile == null) {
+                    promise.reject("Error creating media file.");
+                    return;
+                }
+
+                try {
+                    writeFile(cameraRollFile, data);
+                } catch (IOException | NullPointerException e) {
+                    promise.reject("failed to save image file", e);
+                    return;
+                }
+
+                addToMediaStore(cameraRollFile.getAbsolutePath());
+                resolveImage(cameraRollFile, 0, 0, promise, true);
+                break;
+            }
+
+            case RCT_CAMERA_CAPTURE_TARGET_DISK: {
+                File pictureFile = getOutputMediaFile(MEDIA_TYPE_IMAGE);
+                if (pictureFile == null) {
+                    promise.reject("Error creating media file.");
+                    return;
+                }
+
+                try {
+                    writeFile(pictureFile, data);
+                } catch (IOException e) {
+                    promise.reject("failed to save image file", e);
+                    return;
+                }
+
+                resolveImage(pictureFile, 0, 0, promise, false);
+                break;
+            }
+
+            case RCT_CAMERA_CAPTURE_TARGET_TEMP: {
+                File tempFile = getTempMediaFile(MEDIA_TYPE_IMAGE);
+                if (tempFile == null) {
+                    promise.reject("Error creating media file.");
+                    return;
+                }
+
+                try {
+                    writeFile(tempFile, data);
+                } catch (IOException e) {
+                    promise.reject("failed to save image file", e);
+                    return;
+                }
+
+                resolveImage(tempFile, 0, 0, promise, false);
+                break;
+            }
+        }
+    }
+
     /**
      * synchronized in order to prevent the user crashing the app by taking many photos and them all being processed
      * concurrently which would blow the memory (esp on smaller devices), and slow things down.
      */
-    private synchronized void processImage(MutableImage mutableImage, ReadableMap options, Promise promise) {
+    private synchronized void processImageImpl(MutableImage mutableImage, ReadableMap options, Promise promise) {
         boolean shouldFixOrientation = options.hasKey("fixOrientation") && options.getBoolean("fixOrientation");
         if(shouldFixOrientation) {
             try {
